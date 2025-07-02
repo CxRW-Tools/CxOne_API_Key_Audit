@@ -1,0 +1,2 @@
+# Core dependencies for CxOne API Key Audit
+requests>=2.28.0
