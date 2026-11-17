@@ -147,30 +147,47 @@ def convert_timestamp(timestamp):
     """Convert Unix timestamp to human readable format."""
     return datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
 
-def output_to_csv(api_keys, output_file):
-    """Output API key information to CSV file."""
-    if debug:
-        print(f"Writing API key information to {output_file}...")
-    
+FIELDNAMES = ['Username', 'User ID', 'Created', 'Last Access']
+EXTENSIONS = {'csv': 'csv', 'json': 'json', 'table': 'txt'}
+
+def build_rows(api_keys):
+    """Convert raw API key records into display rows."""
+    return [{
+        'Username': key['username'],
+        'User ID': key['userId'],
+        'Created': convert_timestamp(key['start']),
+        'Last Access': convert_timestamp(key['lastAccess']),
+    } for key in api_keys]
+
+def write_output(rows, fmt, stream):
+    """Write rows to an open text stream in the requested format."""
+    if fmt == 'csv':
+        writer = csv.DictWriter(stream, fieldnames=FIELDNAMES, lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(rows)
+    elif fmt == 'json':
+        json.dump(rows, stream, indent=2)
+        stream.write('\n')
+    else:  # table
+        widths = {f: max([len(f)] + [len(str(r[f])) for r in rows]) for f in FIELDNAMES}
+        line = lambda vals: '  '.join(str(vals[f]).ljust(widths[f]) for f in FIELDNAMES).rstrip()
+        stream.write(line({f: f for f in FIELDNAMES}) + '\n')
+        stream.write('  '.join('-' * widths[f] for f in FIELDNAMES) + '\n')
+        for r in rows:
+            stream.write(line(r) + '\n')
+
+def emit(rows, fmt, to_screen, output_file, screen):
+    """Send output to the screen and/or a file."""
     try:
-        with open(output_file, 'w', newline='') as csvfile:
-            fieldnames = ['Username', 'User ID', 'Created', 'Last Access']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
-            writer.writeheader()
-            for key in api_keys:
-                writer.writerow({
-                    'Username': key['username'],
-                    'User ID': key['userId'],
-                    'Created': convert_timestamp(key['start']),
-                    'Last Access': convert_timestamp(key['lastAccess'])
-                })
-                
-        if debug:
-            print("Successfully wrote API key information to CSV")
-            
+        if output_file:
+            # csv module needs newline='' on files; harmless for json/table
+            with open(output_file, 'w', newline='', encoding='utf-8') as f:
+                write_output(rows, fmt, f)
+            print(f"Wrote {len(rows)} API keys to {output_file}")
+        if to_screen:
+            write_output(rows, fmt, screen)
     except Exception as e:
-        print(f"An error occurred while writing to CSV: {e}")
+        print(f"An error occurred while writing output: {e}")
         sys.exit(1)
 
 class Config:
@@ -180,6 +197,8 @@ class Config:
         self.api_key = None
         self.iam_base_url = None
         self.output = None
+        self.format = None
+        self.stdout = False
         self.debug = False
 
     @classmethod
@@ -191,6 +210,8 @@ class Config:
         config.api_key = os.getenv("CXONE_API_KEY")
         config.iam_base_url = os.getenv("CXONE_IAM_BASE_URL")
         config.output = os.getenv("CXONE_OUTPUT")
+        config.format = (os.getenv("CXONE_FORMAT") or "").lower() or None
+        config.stdout = os.getenv("CXONE_STDOUT", "").lower() == "true"
         config.debug = os.getenv("CXONE_DEBUG", "").lower() == "true"
         return config
 
@@ -201,6 +222,8 @@ class Config:
             return False, "Tenant name is required (set CXONE_TENANT in .env or use --tenant-name)."
         if not self.api_key:
             return False, "API key is required (set CXONE_API_KEY in .env or use --api-key)."
+        if self.format and self.format not in EXTENSIONS:
+            return False, f"Format must be one of {', '.join(EXTENSIONS)} (got '{self.format}')."
         return True, None
 
 def main():
@@ -211,7 +234,9 @@ def main():
     parser.add_argument('--base-url', help='Region base URL (e.g. https://ast.checkmarx.net)')
     parser.add_argument('--tenant-name', '--tenant', dest='tenant_name', help='Tenant name')
     parser.add_argument('--api-key', help='API key')
-    parser.add_argument('--output', help='Output CSV file (default: api_keys.csv)')
+    parser.add_argument('--format', choices=list(EXTENSIONS), help='Output format: csv, json, or table (default: csv)')
+    parser.add_argument('--output', help='Write output to this file (default: api_keys.<format> unless output goes to screen only)')
+    parser.add_argument('--stdout', action='store_true', help='Display output on screen instead of (or in addition to, with --output) writing a file')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
 
     args = parser.parse_args()
@@ -225,6 +250,10 @@ def main():
         config.api_key = args.api_key
     if args.output:
         config.output = args.output
+    if args.format:
+        config.format = args.format
+    if args.stdout:
+        config.stdout = True
     if args.debug:
         config.debug = True
 
@@ -238,7 +267,15 @@ def main():
     api_key = config.api_key
     iam_base_url = (config.iam_base_url or "").rstrip("/") or None
     debug = config.debug
-    output_file = config.output or 'api_keys.csv'
+    fmt = config.format or 'csv'
+    # table is meant for the screen; csv/json write a file unless --stdout is used
+    to_screen = config.stdout or fmt == 'table'
+    output_file = config.output or (None if to_screen else f"api_keys.{EXTENSIONS[fmt]}")
+
+    # Keep stdout clean for data: send status/debug messages to stderr when printing csv/json
+    screen = sys.stdout
+    if to_screen and fmt != 'table':
+        sys.stdout = sys.stderr
 
     print(f"Tenant: {tenant_name} | Base URL: {base_url}")
 
@@ -250,8 +287,8 @@ def main():
     print("Getting API keys...")
     api_keys = get_api_keys(client_id)
 
-    print(f"Writing {len(api_keys)} API keys to {output_file}...")
-    output_to_csv(api_keys, output_file)
+    print(f"Found {len(api_keys)} API keys")
+    emit(build_rows(api_keys), fmt, to_screen, output_file, screen)
 
     print("Done!")
 

@@ -1,6 +1,6 @@
 # CxOne API Key Audit Tool
 
-This tool provides information about existing API keys in a Checkmarx One tenant, including the user and last access date. The information is output to a CSV file.
+This tool provides information about existing API keys in a Checkmarx One tenant, including the user and last access date. The information is output as CSV, JSON, or a table on screen.
 
 ## Configuration
 
@@ -13,7 +13,9 @@ Settings are read from an env file (`.env` by default). Copy [example.env](examp
 | `CXONE_API_KEY` | yes | `--api-key` |
 | `CXONE_IAM_BASE_URL` | no | none |
 | `CXONE_DEBUG` | no | `--debug` |
-| `CXONE_OUTPUT` | no | `--output` (default `api_keys.csv`) |
+| `CXONE_FORMAT` | no | `--format` (`csv`, `json` or `table`; default `csv`) |
+| `CXONE_OUTPUT` | no | `--output` (file path; default `api_keys.<format>`) |
+| `CXONE_STDOUT` | no | `--stdout` (print to screen) |
 
 Precedence: CLI flag > environment variable > env file > built-in default. To use a different env file, pass `--env-file`.
 
@@ -38,9 +40,23 @@ python audit_api_keys.py --base-url https://ast.checkmarx.net --tenant-name my_t
 
 Prefer the env file to `--api-key`: command-line arguments appear in shell history and process lists.
 
+## Output options
+
+By default the tool writes `api_keys.csv`. Choose the format and destination with flags (or the matching variables):
+
+```bash
+python audit_api_keys.py --format table            # readable table on screen, no file
+python audit_api_keys.py --stdout                  # CSV on screen, no file
+python audit_api_keys.py --format json --stdout > keys.json   # status messages go to stderr
+python audit_api_keys.py --format json             # writes api_keys.json
+python audit_api_keys.py --stdout --output keys.csv  # screen and file
+```
+
+`--format table` prints to screen only unless you also pass `--output`.
+
 ## Output
 
-The script generates a CSV file containing the following information for each API key:
+The script outputs the following information for each API key:
 - Username
 - User ID
 - Created date/time
