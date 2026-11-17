@@ -234,7 +234,7 @@ def main():
     parser.add_argument('--base-url', help='Region base URL (e.g. https://ast.checkmarx.net)')
     parser.add_argument('--tenant-name', '--tenant', dest='tenant_name', help='Tenant name')
     parser.add_argument('--api-key', help='API key')
-    parser.add_argument('--format', choices=list(EXTENSIONS), help='Output format: csv, json, or table (default: csv)')
+    parser.add_argument('--format', choices=list(EXTENSIONS), help='Output format: csv, json, or table (default: table)')
     parser.add_argument('--output', help='Write output to this file (default: api_keys.<format> unless output goes to screen only)')
     parser.add_argument('--stdout', action='store_true', help='Display output on screen instead of (or in addition to, with --output) writing a file')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
@@ -267,7 +267,7 @@ def main():
     api_key = config.api_key
     iam_base_url = (config.iam_base_url or "").rstrip("/") or None
     debug = config.debug
-    fmt = config.format or 'csv'
+    fmt = config.format or 'table'
     # table is meant for the screen; csv/json write a file unless --stdout is used
     to_screen = config.stdout or fmt == 'table'
     output_file = config.output or (None if to_screen else f"api_keys.{EXTENSIONS[fmt]}")

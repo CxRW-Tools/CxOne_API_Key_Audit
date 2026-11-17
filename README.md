@@ -13,7 +13,7 @@ Settings are read from an env file (`.env` by default). Copy [example.env](examp
 | `CXONE_API_KEY` | yes | `--api-key` |
 | `CXONE_IAM_BASE_URL` | no | none |
 | `CXONE_DEBUG` | no | `--debug` |
-| `CXONE_FORMAT` | no | `--format` (`csv`, `json` or `table`; default `csv`) |
+| `CXONE_FORMAT` | no | `--format` (`csv`, `json` or `table`; default `table`) |
 | `CXONE_OUTPUT` | no | `--output` (file path; default `api_keys.<format>`) |
 | `CXONE_STDOUT` | no | `--stdout` (print to screen) |
 
@@ -42,17 +42,19 @@ Prefer the env file to `--api-key`: command-line arguments appear in shell histo
 
 ## Output options
 
-By default the tool writes `api_keys.csv`. Choose the format and destination with flags (or the matching variables):
+By default the tool prints a table to the screen and writes no file. Choose the format and destination with flags (or the matching variables):
 
 ```bash
-python audit_api_keys.py --format table            # readable table on screen, no file
-python audit_api_keys.py --stdout                  # CSV on screen, no file
-python audit_api_keys.py --format json --stdout > keys.json   # status messages go to stderr
+python audit_api_keys.py                           # table on screen (default)
+python audit_api_keys.py --format csv              # writes api_keys.csv
 python audit_api_keys.py --format json             # writes api_keys.json
-python audit_api_keys.py --stdout --output keys.csv  # screen and file
+python audit_api_keys.py --format csv --stdout     # CSV on screen, no file
+python audit_api_keys.py --format json --stdout > keys.json   # status messages go to stderr
+python audit_api_keys.py --format csv --stdout --output keys.csv  # screen and file
+python audit_api_keys.py --output keys.txt         # table on screen and in a file
 ```
 
-`--format table` prints to screen only unless you also pass `--output`.
+`--format csv` and `--format json` write a file unless you pass `--stdout`. A table prints to screen only unless you also pass `--output`.
 
 ## Output
 
