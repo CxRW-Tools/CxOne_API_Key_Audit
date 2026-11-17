@@ -2,44 +2,41 @@
 
 This tool provides information about existing API keys in a Checkmarx One tenant, including the user and last access date. The information is output to a CSV file.
 
-## Syntax and Arguments
+## Configuration
 
-Run the script using the following syntax:
+Settings are read from an env file (`.env` by default). Copy [example.env](example.env) to `.env` and fill in your values. `.env` is gitignored; never commit it.
 
-```bash
-python audit_api_keys.py --base-url BASE_URL --tenant TENANT --api-key API_KEY [OPTIONS]
-```
+| Variable | Required | Flag |
+|---|---|---|
+| `CXONE_BASE_URL` | yes | `--base-url` |
+| `CXONE_TENANT` | yes | `--tenant-name` (or `--tenant`) |
+| `CXONE_API_KEY` | yes | `--api-key` |
+| `CXONE_IAM_BASE_URL` | no | none |
+| `CXONE_DEBUG` | no | `--debug` |
+| `CXONE_OUTPUT` | no | `--output` (default `api_keys.csv`) |
 
-### Required Arguments
+Precedence: CLI flag > environment variable > env file > built-in default. To use a different env file, pass `--env-file`.
 
-- `--base-url`: The base URL of the CxOne region (e.g., https://ast.checkmarx.net).
-- `--tenant`: The name of the tenant.
-- `--api-key`: The API key used for authentication.
-
-### Optional Arguments
-
-- `--output`: Output CSV file (default: api_keys.csv).
-- `--debug`: Enable debug output. (Flag, no value required)
-
-## Usage Examples
-
-Basic usage:
+## Usage
 
 ```bash
-python audit_api_keys.py --base-url https://ast.checkmarx.net --tenant my_tenant --api-key my_api_key
+pip install -r requirements.txt
+python audit_api_keys.py
 ```
 
-Specify custom output file:
+Using a separate env file (for example, one per tenant kept outside the repo):
 
 ```bash
-python audit_api_keys.py --base-url https://ast.checkmarx.net --tenant my_tenant --api-key my_api_key --output custom_output.csv
+python audit_api_keys.py --env-file "path/to/tenant.env"
 ```
 
-Enable debug output:
+Flags still work and override the env file:
 
 ```bash
-python audit_api_keys.py --base-url https://ast.checkmarx.net --tenant my_tenant --api-key my_api_key --debug
+python audit_api_keys.py --base-url https://ast.checkmarx.net --tenant-name my_tenant --api-key my_api_key --output custom_output.csv --debug
 ```
+
+Prefer the env file to `--api-key`: command-line arguments appear in shell history and process lists.
 
 ## Output
 

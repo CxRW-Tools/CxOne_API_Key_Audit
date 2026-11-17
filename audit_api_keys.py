@@ -4,7 +4,10 @@ import argparse
 import time
 import json
 import csv
+import os
 from datetime import datetime
+
+from dotenv import load_dotenv
 
 # Standard global variables
 base_url = None
@@ -170,35 +173,87 @@ def output_to_csv(api_keys, output_file):
         print(f"An error occurred while writing to CSV: {e}")
         sys.exit(1)
 
+class Config:
+    def __init__(self):
+        self.base_url = None
+        self.tenant_name = None
+        self.api_key = None
+        self.iam_base_url = None
+        self.output = None
+        self.debug = False
+
+    @classmethod
+    def from_env(cls, env_file=".env"):
+        load_dotenv(env_file)  # a missing file is fine; existing env vars are not overwritten
+        config = cls()
+        config.base_url = os.getenv("CXONE_BASE_URL")
+        config.tenant_name = os.getenv("CXONE_TENANT")
+        config.api_key = os.getenv("CXONE_API_KEY")
+        config.iam_base_url = os.getenv("CXONE_IAM_BASE_URL")
+        config.output = os.getenv("CXONE_OUTPUT")
+        config.debug = os.getenv("CXONE_DEBUG", "").lower() == "true"
+        return config
+
+    def validate(self):
+        if not self.base_url:
+            return False, "Base URL is required (set CXONE_BASE_URL in .env or use --base-url)."
+        if not self.tenant_name:
+            return False, "Tenant name is required (set CXONE_TENANT in .env or use --tenant-name)."
+        if not self.api_key:
+            return False, "API key is required (set CXONE_API_KEY in .env or use --api-key)."
+        return True, None
+
 def main():
-    global base_url, tenant_name, auth_url, api_key, debug
-    
+    global base_url, tenant_name, auth_url, iam_base_url, api_key, debug
+
     parser = argparse.ArgumentParser(description='Audit API keys in Checkmarx One')
-    parser.add_argument('--base-url', required=True, help='Base URL for Checkmarx One (e.g., https://ast.checkmarx.net)')
-    parser.add_argument('--tenant', required=True, help='Tenant name')
-    parser.add_argument('--api-key', required=True, help='API key for authentication')
-    parser.add_argument('--output', default='api_keys.csv', help='Output CSV file (default: api_keys.csv)')
+    parser.add_argument('--env-file', default='.env', help='Path to environment file (default: .env)')
+    parser.add_argument('--base-url', help='Region base URL (e.g. https://ast.checkmarx.net)')
+    parser.add_argument('--tenant-name', '--tenant', dest='tenant_name', help='Tenant name')
+    parser.add_argument('--api-key', help='API key')
+    parser.add_argument('--output', help='Output CSV file (default: api_keys.csv)')
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
-    
+
     args = parser.parse_args()
-    
-    base_url = args.base_url
-    tenant_name = args.tenant
-    api_key = args.api_key
-    debug = args.debug
-    
+
+    config = Config.from_env(args.env_file)
+    if args.base_url:
+        config.base_url = args.base_url
+    if args.tenant_name:
+        config.tenant_name = args.tenant_name
+    if args.api_key:
+        config.api_key = args.api_key
+    if args.output:
+        config.output = args.output
+    if args.debug:
+        config.debug = True
+
+    ok, err = config.validate()
+    if not ok:
+        print("Configuration error:", err)
+        sys.exit(1)
+
+    base_url = config.base_url.rstrip("/")
+    tenant_name = config.tenant_name
+    api_key = config.api_key
+    iam_base_url = (config.iam_base_url or "").rstrip("/") or None
+    debug = config.debug
+    output_file = config.output or 'api_keys.csv'
+
+    print(f"Tenant: {tenant_name} | Base URL: {base_url}")
+
     auth_url = generate_auth_url()
-    
+
     print("Getting client ID...")
     client_id = get_client_id()
-    
+
     print("Getting API keys...")
     api_keys = get_api_keys(client_id)
-    
-    print(f"Writing {len(api_keys)} API keys to {args.output}...")
-    output_to_csv(api_keys, args.output)
-    
+
+    print(f"Writing {len(api_keys)} API keys to {output_file}...")
+    output_to_csv(api_keys, output_file)
+
     print("Done!")
 
 if __name__ == "__main__":
-    main() 
+    main()
